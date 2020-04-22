@@ -65,11 +65,13 @@ def main():
                     ran_gen = random.randint(1000, 9999)
                     if len(row) > 0:
                         cursor.execute("UPDATE registry SET access_code = {} WHERE reg_id = {}".format(ran_gen, text[1]))
+                        db.commit()
                         message = "Ты уже регистрировался, но еще не активировал свой аккаунт. Перейди по ссылке t.me " \
                                   "и введи новый код /activate {}".format(ran_gen)
                     else:
                         cursor.execute(
                             "INSERT INTO registry (id, access_token, reg_id) VALUES ({}, {}, {}})".format(event.user_id, ran_gen, text[1]))
+                        db.commit()
                         message = "Хорошо, теперь тебе надо активировать этот аккаунт перейди по сыылке и введи: " \
                                   "/activate {}".format(ran_gen)
 
@@ -84,10 +86,30 @@ def main():
                 continue
 
             if text[0] == "/remove_rule":
+                text.remove("/remove_rule")
+                message = ""
+                for element in text:
+                    cursor.execute("SELECT * FROM tag WHERE user_id = {}, name = {}".format(element, event.user_id))
+                    if len(cursor.fetchane()) > 0:
+                        cursor.execute("DELETE FROM tag WHERE name = {}, user_id = {}".format(element, event.user_id))
+                        db.commit()
+                        message += "\nТэг {} успешно удален".format(element)
+                    else:
+                        message += "\nТэга {} не существует".format(element)
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
 
             if text[0] == "/rule":
+                if len(text) > 1:
+                    message = "Слишком много параметров"
+                else:
+                    cursor.execute("SELECT name from tag WHERE user_id = (SELECT id FROM users WHERE vk_id = {})".format(event.user_id))
+                    row = cursor.fetchall()
+                    message = "Ваши теги:"
+                    i = 1
+                    for element in row:
+                        message += "\n{}. {}".format(, element[0])
+                        i += 1
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
 
@@ -100,12 +122,15 @@ def main():
                     if row['access_code'] == text[1]:
                         message = "Успешно зарегистрирован"
                         cursor.execute("UPDATE users SET vk_id = {} WHERE telegram_id = {}".format(event.user_id, row['user_id']))
+                        db.commit()
                     else:
                         message = "Неверный код"
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
 
-            if (text[0] == "./stop") & (text[1] == stopCode):
-                return
+            if text[0] == "./stop":
+                if text[1] == stopCode:
+                    cursor.close()
+                    return
 
             message = "Хм что то странное, я тебя не понимаю, попробуй команду /help"
             vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
