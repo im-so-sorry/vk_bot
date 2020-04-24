@@ -7,8 +7,8 @@ import psycopg2
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.utils import get_random_id
 from psycopg2.extras import DictCursor
-from psycopg2 import sql
-
+import inner_service_api
+from inner_service_api import baraddur_service
 
 def main():
     session = requests.Session()
@@ -39,7 +39,8 @@ def main():
                 else:
                     cursor.execute("INSERT INTO users (vk_id) VALUES ({})".format(event.user_id))
                     db.commit()
-                    message = "Привет я помогу тебе с поиском мемов в вк по тегам"
+                    # baraddur_service.BaraddurService.get_user()
+                message = "Привет я помогу тебе с поиском мемов в вк по тегам"
 
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
@@ -80,8 +81,18 @@ def main():
 
             if text[0] == "/add_rule":
                 # text.remove("/add_rule")
+                message = ""
                 for i in range(1, len(text), 2):
-                    a = 0
+                    try:
+                        cursor.execute("SELECT id FROM  users WHERE vk_id = {}".format(event.user_id))
+                        userID = cursor.fetchone()
+                        cursor.execute(
+                            "INSERT INTO tag (name, value, user_id) VALUES ('{}', {}, {})".format(text[i], text[i+1], userID[0]))
+                        db.commit()
+                        message += "Тэг '{}' успешо добавлен".format(text[i])
+                    except Exception:
+                        message += "На тэге '{}' произошла ошибка".format(text[i])
+
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
 
@@ -89,9 +100,11 @@ def main():
                 text.remove("/remove_rule")
                 message = ""
                 for element in text:
-                    cursor.execute("SELECT * FROM tag WHERE user_id = {}, name = {}".format(element, event.user_id))
-                    if len(cursor.fetchane()) > 0:
-                        cursor.execute("DELETE FROM tag WHERE name = {}, user_id = {}".format(element, event.user_id))
+                    cursor.execute("SELECT id FROM  users WHERE vk_id = {}".format(event.user_id))
+                    userID = cursor.fetchone()
+                    cursor.execute("SELECT * FROM tag WHERE user_id = {} and name = '{}'".format(userID[0], element))
+                    if len(cursor.fetchone()) > 0:
+                        cursor.execute("DELETE FROM tag WHERE name = '{}' and user_id = {}".format(element, userID[0]))
                         db.commit()
                         message += "\nТэг {} успешно удален".format(element)
                     else:
@@ -105,10 +118,11 @@ def main():
                 else:
                     cursor.execute("SELECT name from tag WHERE user_id = (SELECT id FROM users WHERE vk_id = {})".format(event.user_id))
                     row = cursor.fetchall()
+                    # row = baraddur_service.BaraddurService.get_rules(username=event.user_id)
                     message = "Ваши теги:"
                     i = 1
                     for element in row:
-                        message += "\n{}. {}".format(, element[0])
+                        message += "\n{}. {}".format(i, element[0])
                         i += 1
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
