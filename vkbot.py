@@ -1,36 +1,32 @@
 from random import random
 
 import requests
-from config import *
 import vk_api
 import psycopg2
 from vk_api.longpoll import VkLongPoll, VkEventType
 from vk_api.utils import get_random_id
 from psycopg2.extras import DictCursor
-import inner_service_api
 from inner_service_api import baraddur_service
+
+from vk_bot import settings
+
+vk_session = vk_api.VkApi(token=settings.VK_TOKEN)
+
+vk = vk_session.get_api()
+
+
+def send_message(user_id, message):
+    vk.messages.send(user_id=user_id, random_id=get_random_id(), message=message)
+
 
 def main():
     session = requests.Session()
-    db = psycopg2.connect(
-        database=database,
-        user=user,
-        password=password,
-        host=host,
-        port=port
-    )
-    cursor = db.cursor(cursor_factory=DictCursor)
-
-    vk_session = vk_api.VkApi(
-        token=token)
-
-    vk = vk_session.get_api()
 
     longpoll = VkLongPoll(vk_session)
     message = ""
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-            text = event.text.split(' ')
+            text = event.text.split(" ")
             if text[0] == "/start":
                 cursor.execute("SELECT id from users where vk_id = {}".format(event.user_id))
                 row = cursor.fetchall()
@@ -46,8 +42,10 @@ def main():
                 continue
 
             if text[0] == "/help":
-                message = "/reg - регистрация сервиса\n/add_rule <tag> <value> - добавление " \
-                          "правила\n/remove_rule <tag> - удаление правила\n/rules - получение списка правил"
+                message = (
+                    "/reg - регистрация сервиса\n/add_rule <tag> <value> - добавление "
+                    "правила\n/remove_rule <tag> - удаление правила\n/rules - получение списка правил"
+                )
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
 
@@ -65,16 +63,25 @@ def main():
                     row = cursor.fetchall()
                     ran_gen = random.randint(1000, 9999)
                     if len(row) > 0:
-                        cursor.execute("UPDATE registry SET access_code = {} WHERE reg_id = {}".format(ran_gen, text[1]))
+                        cursor.execute(
+                            "UPDATE registry SET access_code = {} WHERE reg_id = {}".format(ran_gen, text[1])
+                        )
                         db.commit()
-                        message = "Ты уже регистрировался, но еще не активировал свой аккаунт. Перейди по ссылке t.me " \
-                                  "и введи новый код /activate {}".format(ran_gen)
+                        message = (
+                            "Ты уже регистрировался, но еще не активировал свой аккаунт. Перейди по ссылке t.me "
+                            "и введи новый код /activate {}".format(ran_gen)
+                        )
                     else:
                         cursor.execute(
-                            "INSERT INTO registry (id, access_token, reg_id) VALUES ({}, {}, {}})".format(event.user_id, ran_gen, text[1]))
+                            "INSERT INTO registry (id, access_token, reg_id) VALUES ({}, {}, {}})".format(
+                                event.user_id, ran_gen, text[1]
+                            )
+                        )
                         db.commit()
-                        message = "Хорошо, теперь тебе надо активировать этот аккаунт перейди по сыылке и введи: " \
-                                  "/activate {}".format(ran_gen)
+                        message = (
+                            "Хорошо, теперь тебе надо активировать этот аккаунт перейди по сыылке и введи: "
+                            "/activate {}".format(ran_gen)
+                        )
 
                 vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
                 continue
@@ -87,7 +94,10 @@ def main():
                         cursor.execute("SELECT id FROM  users WHERE vk_id = {}".format(event.user_id))
                         userID = cursor.fetchone()
                         cursor.execute(
-                            "INSERT INTO tag (name, value, user_id) VALUES ('{}', {}, {})".format(text[i], text[i+1], userID[0]))
+                            "INSERT INTO tag (name, value, user_id) VALUES ('{}', {}, {})".format(
+                                text[i], text[i + 1], userID[0]
+                            )
+                        )
                         db.commit()
                         message += "Тэг '{}' успешо добавлен".format(text[i])
                     except Exception:
@@ -102,9 +112,13 @@ def main():
                 for element in text:
                     cursor.execute("SELECT id FROM  users WHERE vk_id = {}".format(event.user_id))
                     userID = cursor.fetchone()
-                    cursor.execute("SELECT * FROM tag WHERE user_id = {} and name = '{}'".format(userID[0], element))
+                    cursor.execute(
+                        "SELECT * FROM tag WHERE user_id = {} and name = '{}'".format(userID[0], element)
+                    )
                     if len(cursor.fetchone()) > 0:
-                        cursor.execute("DELETE FROM tag WHERE name = '{}' and user_id = {}".format(element, userID[0]))
+                        cursor.execute(
+                            "DELETE FROM tag WHERE name = '{}' and user_id = {}".format(element, userID[0])
+                        )
                         db.commit()
                         message += "\nТэг {} успешно удален".format(element)
                     else:
@@ -116,7 +130,11 @@ def main():
                 if len(text) > 1:
                     message = "Слишком много параметров"
                 else:
-                    cursor.execute("SELECT name from tag WHERE user_id = (SELECT id FROM users WHERE vk_id = {})".format(event.user_id))
+                    cursor.execute(
+                        "SELECT name from tag WHERE user_id = (SELECT id FROM users WHERE vk_id = {})".format(
+                            event.user_id
+                        )
+                    )
                     row = cursor.fetchall()
                     # row = baraddur_service.BaraddurService.get_rules(username=event.user_id)
                     message = "Ваши теги:"
@@ -133,9 +151,13 @@ def main():
                 else:
                     cursor.execute("SELECT * from registry where reg_id = {}".format(event.user_id))
                     row = cursor.fetchone()
-                    if row['access_code'] == text[1]:
+                    if row["access_code"] == text[1]:
                         message = "Успешно зарегистрирован"
-                        cursor.execute("UPDATE users SET vk_id = {} WHERE telegram_id = {}".format(event.user_id, row['user_id']))
+                        cursor.execute(
+                            "UPDATE users SET vk_id = {} WHERE telegram_id = {}".format(
+                                event.user_id, row["user_id"]
+                            )
+                        )
                         db.commit()
                     else:
                         message = "Неверный код"
@@ -150,5 +172,5 @@ def main():
             vk.messages.send(user_id=event.user_id, random_id=get_random_id(), message=message)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

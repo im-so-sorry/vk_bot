@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  vk_bot:
+    build: .
+    env_file: .env
+    restart: "always"
+    networks:
+      - barad-dur_barad-dur
+    command: python -m vk_bot
+
+networks:
+  barad-dur_barad-dur:
+    external: true
