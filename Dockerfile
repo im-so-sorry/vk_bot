@@ -2,7 +2,7 @@ FROM python:3.7-alpine
 
 WORKDIR /usr/src/app
 ENV DATABASE_CONNECTION "sqlite://:memory:"
-
+RUN apk add --no-cache --virtual .deps gcc musl-dev
 RUN apk update \
     && apk add ttf-dejavu \
     && apk add openjdk8-jre \
