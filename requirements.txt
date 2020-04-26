@@ -1,5 +1,5 @@
 vk_api==11.8.0
 psycopg2==2.8.5
 environs==7.4.0
-black==19.10b0
+# black==19.10b0
 git+https://github.com/im-so-sorry/inner-service-module
